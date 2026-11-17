@@ -8,7 +8,9 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.edge.EdgeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.annotations.AfterMethod;
@@ -35,6 +37,9 @@ public class BaseClass {
 		String selectedBrowser = (browserName != null && !browserName.isEmpty()) ? browserName
 				: ConfigReader.getProperty("browser");
 
+		// Reads -Dheadless=true from Maven/Jenkins/GitHub Actions (defaults to false locally)
+		boolean isHeadless = Boolean.parseBoolean(System.getProperty("headless", "false"));
+
 		WebDriver driver;
 
 		if (selectedBrowser.equalsIgnoreCase("chrome")) {
@@ -45,11 +50,34 @@ public class BaseClass {
 			prefs.put("profile.password_manager_leak_detection", false);
 			options.setExperimentalOption("prefs", prefs);
 			options.addArguments("--disable-notifications", "--disable-save-password-bubble");
+
+			if (isHeadless) {
+				options.addArguments("--headless=new");
+				options.addArguments("--window-size=1920,1080");
+				options.addArguments("--no-sandbox");
+				options.addArguments("--disable-dev-shm-usage");
+			}
 			driver = new ChromeDriver(options);
+
 		} else if (selectedBrowser.equalsIgnoreCase("edge")) {
-			driver = new EdgeDriver();
+			EdgeOptions edgeOptions = new EdgeOptions();
+			if (isHeadless) {
+				edgeOptions.addArguments("--headless=new");
+				edgeOptions.addArguments("--window-size=1920,1080");
+				edgeOptions.addArguments("--no-sandbox");
+				edgeOptions.addArguments("--disable-dev-shm-usage");
+			}
+			driver = new EdgeDriver(edgeOptions);
+
 		} else if (selectedBrowser.equalsIgnoreCase("firefox")) {
-			driver = new FirefoxDriver();
+			FirefoxOptions firefoxOptions = new FirefoxOptions();
+			if (isHeadless) {
+				firefoxOptions.addArguments("-headless");
+				firefoxOptions.addArguments("--width=1920");
+				firefoxOptions.addArguments("--height=1080");
+			}
+			driver = new FirefoxDriver(firefoxOptions);
+
 		} else {
 			throw new IllegalArgumentException("Invalid browser name: " + selectedBrowser);
 		}
@@ -58,10 +86,12 @@ public class BaseClass {
 		driverThread.set(driver);
 
 		int waitTime = Integer.parseInt(ConfigReader.getProperty("implicitWait"));
-		getDriver().manage().window().maximize();
+		if (!isHeadless) {
+			getDriver().manage().window().maximize();
+		}
 		getDriver().manage().timeouts().implicitlyWait(Duration.ofSeconds(waitTime));
 		getDriver().get(ConfigReader.getProperty("url"));
-	} // <-- This closing brace was missing!
+	}
 
 	// Helper method to safely accept any JavaScript alert if one appears
 	public void acceptAlertIfPresent() {
